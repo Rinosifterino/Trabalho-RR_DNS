@@ -1,14 +1,11 @@
 services:
-  # 1. Banco de Dados (Redis) - Dados de Usuário e Sessão Centralizada
   redis:
     image: redis:7-alpine
     container_name: redis_db
     ports:
       - "6379:6379"
     volumes:
-      # CORREÇÃO 1: Montamos o arquivo apenas como um script de dados na pasta /data
       - ./infra/redis_init.conf:/data/init.redis
-    # CORREÇÃO 2: Script para iniciar, injetar dados e reiniciar
     command: >
       sh -c "redis-server --daemonize yes
       && sleep 1
@@ -16,63 +13,77 @@ services:
       && redis-cli shutdown
       && redis-server"
     networks:
-      - backend_net
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 1s
-      timeout: 3s
-      retries: 5
+      backend_net:
 
-  # 2, 3, 4. Servidores de Aplicação (Backend Python) - Balanceados por DNS
+  # Serviço de DNS (Bind9)
+  dns:
+    image: ubuntu/bind9
+    container_name: dns_server
+    platform: linux/amd64 # Garante compatibilidade
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+    volumes:
+      - ./dns/named.conf:/etc/bind/named.conf
+      - ./dns/dns___.zone:/etc/bind/dns___.zone
+    networks:
+      backend_net:
+        ipv4_address: 172.20.0.2
+
   app1:
-    build: ./backend
+    build: ./backend # Certifique-se que este caminho está certo
     container_name: app1
     environment:
-      # Variáveis de ambiente para o backend
-      REDIS_HOST: redis
-      HOSTNAME: app1 # Nome do servidor para identificação no frontend
-    ports:
-      - "8001"
-    depends_on:
-      redis:
-        condition: service_healthy
+      REDIS_HOST: redis_db # Nome do serviço redis na rede
+      HOSTNAME: Servidor_01
     networks:
-      - backend_net
-      - frontend_net
+      backend_net:
+        ipv4_address: 172.20.0.10  # IP FIXO
+    depends_on:
+      - redis
 
   app2:
     build: ./backend
     container_name: app2
     environment:
-      REDIS_HOST: redis
-      HOSTNAME: app2
-    ports:
-      - "8002"
-    depends_on:
-      redis:
-        condition: service_healthy
+      REDIS_HOST: redis_db
+      HOSTNAME: Servidor_02
     networks:
-      - backend_net
-      - frontend_net
+      backend_net:
+        ipv4_address: 172.20.0.11  # IP FIXO
+    depends_on:
+      - redis
 
   app3:
     build: ./backend
     container_name: app3
     environment:
-      REDIS_HOST: redis
-      HOSTNAME: app3
-    ports:
-      - "8003"
-    depends_on:
-      redis:
-        condition: service_healthy
+      REDIS_HOST: redis_db
+      HOSTNAME: Servidor_03
     networks:
-      - backend_net
-      - frontend_net
+      backend_net:
+        ipv4_address: 172.20.0.12  # IP FIXO
+    depends_on:
+      - redis
 
 networks:
   backend_net:
     driver: bridge
-  frontend_net:
-    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
+client_tester:
+    image: python:3.11-slim
+    container_name: cliente_teste
+    volumes:
+      - ./testes:/app_teste
+    command: sh -c "pip install requests && python /app_teste/teste_sistema.py"
+    networks:
+      backend_net:
+    depends_on:
+      - dns
+      - app1
+      - app2
+      - app3
+    dns: 172.20.0.2 
