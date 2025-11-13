@@ -6,12 +6,11 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel
 import redis
+# IMPORTAÇÃO NECESSÁRIA PARA O CORS
+from fastapi.middleware.cors import CORSMiddleware
 
 # --- Configuração ---
-# O nome do servidor (hostname) é crucial para o trabalho.
 SERVER_HOSTNAME = os.environ.get("HOSTNAME", "Servidor_Local_Dev")
-
-# Configuração do Redis (Banco de Dados de Usuários e Sessão)
 REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
 redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0, decode_responses=True)
@@ -30,11 +29,23 @@ class UserProfile(BaseModel):
 # --- Aplicação FastAPI ---
 app = FastAPI(title="Backend Distribuído - Engenharia")
 
+# --- CORREÇÃO CORS ---
+# Adicione este bloco para permitir que o frontend (rodando em outra porta)
+# acesse esta API.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Em produção, mude para o domínio do seu frontend
+    allow_credentials=True,
+    allow_methods=["*"], # Permite todos os métodos (GET, POST, etc)
+    allow_headers=["*"], # Permite todos os cabeçalhos
+)
+# --- FIM DA CORREÇÃO CORS ---
+
+
 # --- Funções de Usuário (Redis) ---
 
 def get_user_by_cpf(cpf: str) -> Optional[dict]:
     """Busca um usuário no Redis pelo CPF."""
-    # A chave para os dados do usuário é prefixada com 'user:'
     user_data_json = redis_client.get(f"user:{cpf}")
     if user_data_json:
         return json.loads(user_data_json)
@@ -48,10 +59,8 @@ def create_session(cpf: str) -> str:
     session_data = {
         "user_cpf": cpf,
         "login_time": datetime.datetime.now().isoformat(),
-        "server_name_on_login": SERVER_HOSTNAME # Apenas para debug
+        "server_name_on_login": SERVER_HOSTNAME
     }
-    # A chave para a sessão é prefixada com 'session:'
-    # A sessão expira em 1 hora (3600 segundos)
     redis_client.set(f"session:{session_id}", json.dumps(session_data), ex=3600)
     return session_id
 
@@ -87,18 +96,14 @@ def login(request: LoginRequest):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="CPF não encontrado ou inválido",
         )
-
-    # 1. Autenticação bem-sucedida (simulada, apenas checando a existência do CPF)
     
-    # 2. Criação da Sessão Centralizada (Chave para o Desafio)
     session_id = create_session(cpf)
     session_data = get_session(session_id)
 
-    # 3. Retorna os dados do perfil e o ID da sessão
     return UserProfile(
         nome=user_data["nome"],
         cpf=cpf,
-        server_name=SERVER_HOSTNAME, # Nome do servidor que processou o login
+        server_name=SERVER_HOSTNAME,
         session_id=session_id,
         login_time=session_data["login_time"]
     )
@@ -121,17 +126,15 @@ def meu_perfil(session_id: str):
     user_data = get_user_by_cpf(user_cpf)
 
     if not user_data:
-        # Isso não deve acontecer se o banco de dados de usuários estiver correto
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Dados do usuário não encontrados.",
         )
 
-    # O sucesso aqui demonstra que a sessão é compartilhada.
     return UserProfile(
         nome=user_data["nome"],
         cpf=user_cpf,
-        server_name=SERVER_HOSTNAME, # Nome do servidor que processou a requisição AGORA
+        server_name=SERVER_HOSTNAME,
         session_id=session_id,
         login_time=session_data["login_time"]
     )
@@ -141,4 +144,3 @@ def logout(session_id: str):
     """Invalida a sessão centralizada."""
     delete_session(session_id)
     return {"message": "Logout realizado com sucesso."}
-

@@ -6,9 +6,15 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      # Monta o arquivo de inicialização do Redis
-      - ./infra/redis_init.conf:/usr/local/etc/redis/redis.conf
-    command: redis-server /usr/local/etc/redis/redis.conf
+      # CORREÇÃO 1: Montamos o arquivo apenas como um script de dados na pasta /data
+      - ./infra/redis_init.conf:/data/init.redis
+    # CORREÇÃO 2: Script para iniciar, injetar dados e reiniciar
+    command: >
+      sh -c "redis-server --daemonize yes
+      && sleep 1
+      && cat /data/init.redis | redis-cli
+      && redis-cli shutdown
+      && redis-server"
     networks:
       - backend_net
     healthcheck:
@@ -26,7 +32,7 @@ services:
       REDIS_HOST: redis
       HOSTNAME: app1 # Nome do servidor para identificação no frontend
     ports:
-      - "8001:80"
+      - "8001"
     depends_on:
       redis:
         condition: service_healthy
@@ -41,7 +47,7 @@ services:
       REDIS_HOST: redis
       HOSTNAME: app2
     ports:
-      - "8002:80"
+      - "8002"
     depends_on:
       redis:
         condition: service_healthy
@@ -56,7 +62,7 @@ services:
       REDIS_HOST: redis
       HOSTNAME: app3
     ports:
-      - "8003:80"
+      - "8003"
     depends_on:
       redis:
         condition: service_healthy
