@@ -1,0 +1,72 @@
+services:
+  # 1. Banco de Dados (Redis) - Dados de Usuário e Sessão Centralizada
+  redis:
+    image: redis:7-alpine
+    container_name: redis_db
+    ports:
+      - "6379:6379"
+    volumes:
+      # Monta o arquivo de inicialização do Redis
+      - ./infra/redis_init.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - backend_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 3s
+      retries: 5
+
+  # 2, 3, 4. Servidores de Aplicação (Backend Python) - Balanceados por DNS
+  app1:
+    build: ./backend
+    container_name: app1
+    environment:
+      # Variáveis de ambiente para o backend
+      REDIS_HOST: redis
+      HOSTNAME: app1 # Nome do servidor para identificação no frontend
+    ports:
+      - "8001:80"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - backend_net
+      - frontend_net
+
+  app2:
+    build: ./backend
+    container_name: app2
+    environment:
+      REDIS_HOST: redis
+      HOSTNAME: app2
+    ports:
+      - "8002:80"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - backend_net
+      - frontend_net
+
+  app3:
+    build: ./backend
+    container_name: app3
+    environment:
+      REDIS_HOST: redis
+      HOSTNAME: app3
+    ports:
+      - "8003:80"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - backend_net
+      - frontend_net
+
+networks:
+  backend_net:
+    driver: bridge
+  frontend_net:
+    driver: bridge
+
