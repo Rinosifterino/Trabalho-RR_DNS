@@ -7,10 +7,10 @@ $TTL    604800
                          604800 )       ; Negative Cache TTL
 ;
 @       IN      NS      ns.dns___.com.br.
-@       IN      A       172.20.0.2 ; IP do próprio servidor DNS
+@       IN      A       172.20.0.3 ; IP do próprio servidor DNS
 
 ; Definição do Servidor de Nomes
-ns      IN      A       172.20.0.2
+ns      IN      A       172.20.0.3
 
 ; ROUND ROBIN DNS CONFIGURATION
 ; Apontamos o subdomínio 'www' para os 3 IPs dos containers
