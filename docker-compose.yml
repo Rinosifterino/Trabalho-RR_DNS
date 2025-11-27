@@ -36,6 +36,8 @@ services:
     environment:
       REDIS_HOST: redis_db # Nome do serviço redis na rede
       HOSTNAME: Servidor_01
+    ports:
+      - "8001:80"
     networks:
       backend_net:
         ipv4_address: 172.20.0.10  # IP FIXO
@@ -48,6 +50,8 @@ services:
     environment:
       REDIS_HOST: redis_db
       HOSTNAME: Servidor_02
+    ports:
+      - "8002:80"
     networks:
       backend_net:
         ipv4_address: 172.20.0.11  # IP FIXO
@@ -60,6 +64,8 @@ services:
     environment:
       REDIS_HOST: redis_db
       HOSTNAME: Servidor_03
+    ports:
+    - "8003:80"
     networks:
       backend_net:
         ipv4_address: 172.20.0.12  # IP FIXO

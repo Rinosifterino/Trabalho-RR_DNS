@@ -6,7 +6,7 @@ import './App.css';
 // Em um ambiente de desenvolvimento, você pode usar uma das portas expostas (ex: 8001).
 // Em um ambiente de produção com RR DNS, você usaria o domínio (ex: http://www.meutrabalho.com.br/login )
 // Para testes locais, vamos usar a porta 8001 como base, mas lembre-se que o RR DNS é o que fará a mágica.
-const API_BASE_URL = 'http://localhost:8001'; 
+const API_BASE_URL = 'http://localhost:8002'; 
 
 function App( ) {
   // Estado para os dados do formulário (CPF é o único que importa para o login)
