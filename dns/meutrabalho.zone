@@ -1,0 +1,23 @@
+$TTL    0
+@       IN      SOA     ns.meutrabalho.com.br. admin.meutrabalho.com.br. (
+                              3         ; Serial (Aumentei para 3)
+                         604800         ; Refresh
+                          86400         ; Retry
+                        2419200         ; Expire
+                         604800 )       ; Negative Cache TTL
+;
+@       IN      NS      ns.meutrabalho.com.br.
+
+; Definição do Servidor de Nomes
+ns      IN      A       172.20.0.3
+
+; --- ROUND ROBIN PARA 'WWW' ---
+www     IN      A       172.20.0.10
+www     IN      A       172.20.0.11
+www     IN      A       172.20.0.12
+
+; --- ROUND ROBIN PARA A RAIZ (@) ---
+; Isso permite acessar http://meutrabalho.com.br sem o www
+@       IN      A       172.20.0.10
+@       IN      A       172.20.0.11
+@       IN      A       172.20.0.12

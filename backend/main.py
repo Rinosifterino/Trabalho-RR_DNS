@@ -4,9 +4,10 @@ import uuid
 import datetime
 from typing import Optional
 from fastapi import FastAPI, HTTPException, status
+from fastapi.staticfiles import StaticFiles  
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import redis
-# IMPORTAÇÃO NECESSÁRIA PARA O CORS
 from fastapi.middleware.cors import CORSMiddleware
 
 # --- Configuração ---
@@ -27,34 +28,25 @@ class UserProfile(BaseModel):
     login_time: str
 
 # --- Aplicação FastAPI ---
-app = FastAPI(title="Backend Distribuído - Engenharia")
+app = FastAPI(title="Backend Distribuído - Redes")
 
-# --- CORREÇÃO CORS ---
-# Adicione este bloco para permitir que o frontend (rodando em outra porta)
-# acesse esta API.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Em produção, mude para o domínio do seu frontend
+    allow_origins=["*"], 
     allow_credentials=True,
-    allow_methods=["*"], # Permite todos os métodos (GET, POST, etc)
-    allow_headers=["*"], # Permite todos os cabeçalhos
+    allow_methods=["*"], 
+    allow_headers=["*"], 
 )
-# --- FIM DA CORREÇÃO CORS ---
 
-
-# --- Funções de Usuário (Redis) ---
-
+# --- Funções de Usuário e Sessão (Redis) ---
+# (Mantive suas funções auxiliares aqui, sem alterações)
 def get_user_by_cpf(cpf: str) -> Optional[dict]:
-    """Busca um usuário no Redis pelo CPF."""
     user_data_json = redis_client.get(f"user:{cpf}")
     if user_data_json:
         return json.loads(user_data_json)
     return None
 
-# --- Funções de Sessão (Redis) ---
-
 def create_session(cpf: str) -> str:
-    """Cria uma sessão no Redis e retorna o ID da sessão."""
     session_id = str(uuid.uuid4())
     session_data = {
         "user_cpf": cpf,
@@ -65,29 +57,22 @@ def create_session(cpf: str) -> str:
     return session_id
 
 def get_session(session_id: str) -> Optional[dict]:
-    """Busca a sessão no Redis."""
     session_data = redis_client.get(f"session:{session_id}")
     if session_data:
         return json.loads(session_data)
     return None
 
 def delete_session(session_id: str):
-    """Deleta a sessão no Redis."""
     redis_client.delete(f"session:{session_id}")
 
-# --- Endpoints da API ---
+# --- Endpoints da API (DEVEM VIR PRIMEIRO) ---
 
-@app.get("/")
-def read_root():
-    """Endpoint de saúde e identificação do servidor."""
-    return {"message": "Backend rodando", "server": SERVER_HOSTNAME}
+@app.get("/api/health")
+def health_check():
+    return {"status": "ok", "server": SERVER_HOSTNAME}
 
 @app.post("/login", response_model=UserProfile)
 def login(request: LoginRequest):
-    """
-    Realiza o login. Se for bem-sucedido, cria uma sessão centralizada
-    e retorna os dados do usuário e o ID da sessão.
-    """
     cpf = request.cpf
     user_data = get_user_by_cpf(cpf)
 
@@ -110,10 +95,6 @@ def login(request: LoginRequest):
 
 @app.get("/meu-perfil/{session_id}", response_model=UserProfile)
 def meu_perfil(session_id: str):
-    """
-    Endpoint protegido. Verifica a sessão centralizada e retorna os dados
-    do usuário e o nome do servidor atual.
-    """
     session_data = get_session(session_id)
 
     if not session_data:
@@ -141,6 +122,24 @@ def meu_perfil(session_id: str):
 
 @app.post("/logout/{session_id}")
 def logout(session_id: str):
-    """Invalida a sessão centralizada."""
     delete_session(session_id)
     return {"message": "Logout realizado com sucesso."}
+
+
+# --- Configuração de Arquivos Estáticos (DEVE SER O ÚLTIMO) ---
+
+# 1. Monta a pasta de assets (CSS, JS, Imagens geradas pelo Vite)
+# Certifique-se que a pasta backend/static/assets existe no container!
+app.mount("/assets", StaticFiles(directory="static/assets"), name="static_assets")
+
+# 2. Rota Catch-All para servir o React (SPA)
+# Ela captura tudo que NÃO foi capturado pelas rotas acima.
+@app.get("/{full_path:path}")
+async def serve_react_app(full_path: str):
+    # Se o frontend tentar acessar uma API que não existe, retorna 404
+    if full_path.startswith("api"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    
+    # Para qualquer outra rota (ex: /login-view, /dashboard), entrega o index.html
+    # O React Router no navegador vai ler a URL e mostrar a tela certa.
+    return FileResponse("static/index.html")

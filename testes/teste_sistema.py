@@ -2,7 +2,7 @@ import requests
 import time
 
 # Este endereço só funciona DENTRO do Docker, graças ao seu container DNS
-url = "http://www.dns___.com.br/"
+url = "http://www.meutrabalho.com.br/"
 
 print(f"--- Iniciando teste de carga para: {url} ---")
 print("Tentando provar o balanceamento de carga (Round Robin)...")

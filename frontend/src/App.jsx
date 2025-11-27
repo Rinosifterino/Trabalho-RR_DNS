@@ -2,11 +2,7 @@ import { useState } from 'react';
 import { IMaskInput } from "react-imask";
 import './App.css';
 
-// URL base da sua API.
-// Em um ambiente de desenvolvimento, você pode usar uma das portas expostas (ex: 8001).
-// Em um ambiente de produção com RR DNS, você usaria o domínio (ex: http://www.meutrabalho.com.br/login )
-// Para testes locais, vamos usar a porta 8001 como base, mas lembre-se que o RR DNS é o que fará a mágica.
-const API_BASE_URL = 'http://localhost:8002'; 
+const API_BASE_URL = ''; 
 
 function App( ) {
   // Estado para os dados do formulário (CPF é o único que importa para o login)
@@ -67,34 +63,52 @@ function App( ) {
   };
 
   // Função para buscar o perfil (recurso protegido)
-  const fetchProfile = async (currentSessionId) => {
+// Função para buscar o perfil com "Retry Automático"
+  // Adicionamos um contador de tentativas (retryCount)
+  const fetchProfile = async (currentSessionId, retryCount = 0) => {
     if (!currentSessionId) return;
 
-    setMessage('Buscando perfil...');
+    // Mostra status diferente dependendo se é a primeira vez ou uma nova tentativa
+    if (retryCount === 0) {
+      setMessage('Buscando perfil...');
+    } else {
+      setMessage(`Servidor indisponível. Buscando próximo servidor (Tentativa ${retryCount})...`);
+    }
+
     try {
-      // 3. Chamar o endpoint /meu-perfil/{session_id}
-      // NOTA: Para testar o RR DNS, você deve tentar acessar diferentes portas (8001, 8002, 8003)
-      // ou usar o domínio configurado no seu RR DNS.
-      // Aqui, mantemos a porta 8001 apenas para garantir que a sessão persista,
-      // mesmo que a requisição caia em outro servidor (o backend cuida disso via Redis).
-      const response = await fetch(`${API_BASE_URL}/meu-perfil/${currentSessionId}`);
+      // Tenta conectar com timeout de 2 segundos
+      const response = await fetch(`${API_BASE_URL}/meu-perfil/${currentSessionId}`, {
+        signal: AbortSignal.timeout(15000) 
+      });
+      
       const data = await response.json();
 
       if (response.ok) {
         setUserProfile(data);
         setMessage(`Perfil carregado com sucesso! Servidor atual: ${data.server_name}`);
       } else {
-        setMessage(`Sessão expirada ou inválida. Por favor, faça login novamente. Servidor: ${data.server_name}`);
+        // Se o servidor respondeu, mas a sessão é inválida
+        setMessage(`Sessão expirada. Faça login novamente. Servidor: ${data.server_name}`);
         setSessionId(null);
         localStorage.removeItem('sessionId');
         setUserProfile(null);
       }
     } catch (error) {
-      setMessage(`Erro ao buscar perfil: Verifique a conexão com o backend.`);
+      console.error("Erro na requisição:", error);
+      
+      // Se der erro (Timeout ou Rede) e ainda não tentamos 3 vezes...
+      if (retryCount < 3) {
+        // ...espera 1 segundo e tenta de novo (recursividade)
+        setTimeout(() => {
+          fetchProfile(currentSessionId, retryCount + 1);
+        }, 1000);
+      } else {
+        setMessage(`Erro crítico: Nenhum servidor respondeu após 3 tentativas.`);
+      }
     }
   };
 
-  // Efeito para tentar carregar o perfil se já houver um session_id salvo
+
   useState(() => {
     if (sessionId) {
       fetchProfile(sessionId);
